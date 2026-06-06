@@ -1,7 +1,7 @@
 #!/bin/bash
 # NetClientX V1
 # UPDATE AND INSTALL SOFTWARE
-sudo apt update && sudo apt upgrade -y && sudo apt autoremove -y && sudo apt install -y --no-install-recommends xorg openbox chromium-browser network-manager network-manager-applet tint2 wget
+sudo apt update && sudo apt upgrade -y && sudo apt autoremove -y && sudo apt install -y --no-install-recommends xorg openbox chromium-browser network-manager network-manager-gnome tint2 wget
 # GET USERNAME
 USERNAME=$(logname)
 # GET CONNECTION URL
