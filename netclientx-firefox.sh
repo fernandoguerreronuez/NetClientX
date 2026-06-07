@@ -1,11 +1,44 @@
 #!/bin/bash
 # NetClientX V1
-# UPDATE AND INSTALL SOFTWARE
-sudo apt update && sudo apt upgrade -y && sudo apt autoremove -y && sudo apt install -y --no-install-recommends xorg openbox firefox network-manager network-manager-gnome tint2
+# Check if run with root privileges
+if [ "$EUID" -ne 0 ]; then
+    echo "Error: Please run this script with sudo."
+    exit 1
+fi
+
+# UPDATE AND INSTALL SOFTWARE (including wget for font download)
+apt update && apt upgrade -y && apt autoremove -y && apt install -y --no-install-recommends xorg openbox firefox network-manager network-manager-gnome tint2 wget
+
 # GET USERNAME
-USERNAME=$(logname)
+if [ -n "$SUDO_USER" ]; then
+    USERNAME=$SUDO_USER
+elif [ "$(logname 2>/dev/null)" ]; then
+    USERNAME=$(logname)
+else
+    USERNAME=$(awk -F: '$3 >= 1000 && $3 != 65534 {print $1; exit}' /etc/passwd)
+fi
+
+if [ -z "$USERNAME" ] || [ "$USERNAME" = "root" ]; then
+    echo "Error: Could not determine the non-root user."
+    exit 1
+fi
+
 # GET CONNECTION URL
-read -p "Enter connection URL: " URL
+URL=$1
+if [ -z "$URL" ]; then
+    read -p "Enter connection URL: " URL
+fi
+
+# Clean and validate URL
+URL=$(echo "$URL" | xargs)
+if [[ ! "$URL" =~ ^https?:// ]]; then
+    URL="https://$URL"
+fi
+
+# DOWNLOAD FONT
+mkdir -p /home/$USERNAME/fonts
+wget -q "https://fonts.gstatic.com/s/vt323/v17/pxiKyp0ihIEF2isfFJU.woff2" -O /home/$USERNAME/fonts/VT323.woff2
+
 # GENERATE WAITING PAGE
 cat > /home/$USERNAME/waiting.html << HTMLEOF
 <!DOCTYPE html>
@@ -14,8 +47,11 @@ cat > /home/$USERNAME/waiting.html << HTMLEOF
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>NetClientX</title>
-  <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet" />
   <style>
+    @font-face {
+      font-family: 'VT323';
+      src: url('fonts/VT323.woff2') format('woff2');
+    }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: #0a0000; overflow: hidden; font-family: 'VT323', monospace; transition: background 0.8s; }
     canvas { position: fixed; inset: 0; z-index: 0; }
@@ -148,50 +184,90 @@ cat > /home/$USERNAME/waiting.html << HTMLEOF
 </body>
 </html>
 HTMLEOF
-# FIX WAITING PAGE PERMISSIONS
+# FIX PERMISSIONS & DOWNLOAD DIRECTORIES
 chmod 644 /home/$USERNAME/waiting.html
-chown $USERNAME:$USERNAME /home/$USERNAME/waiting.html
+chmod 644 /home/$USERNAME/fonts/VT323.woff2
+chown -R $USERNAME:$USERNAME /home/$USERNAME/fonts /home/$USERNAME/waiting.html
+
+# SETUP OPENBOX SYSTEM MENU
+mkdir -p /home/$USERNAME/.config/openbox
+cat > /home/$USERNAME/.config/openbox/menu.xml << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<openbox_menu xmlns="http://openbox.org/3.4/menu">
+  <menu id="root-menu" label="NetClientX">
+    <item label="Restart Web Browser">
+      <action name="Execute"><command>pkill -f firefox</command></action>
+    </item>
+    <item label="Open Wi-Fi Settings">
+      <action name="Execute"><command>nm-connection-editor</command></action>
+    </item>
+    <separator />
+    <item label="Reboot System">
+      <action name="Execute"><command>systemctl reboot</command></action>
+    </item>
+    <item label="Shutdown System">
+      <action name="Execute"><command>systemctl poweroff</command></action>
+    </item>
+  </menu>
+</openbox_menu>
+EOF
+chmod 644 /home/$USERNAME/.config/openbox/menu.xml
+chown -R $USERNAME:$USERNAME /home/$USERNAME/.config
+
 # SETUP AUTOLOGIN
-sudo mkdir -p /etc/systemd/system/getty@tty1.service.d/
-sudo tee /etc/systemd/system/getty@tty1.service.d/autologin.conf <<EOF
+mkdir -p /etc/systemd/system/getty@tty1.service.d/
+tee /etc/systemd/system/getty@tty1.service.d/autologin.conf <<EOF
 [Service]
 ExecStart=
 ExecStart=-/sbin/agetty --autologin $USERNAME --noclear %I \$TERM
 EOF
+
 # X AUTOSTART
 grep -qF 'startx' /home/$USERNAME/.bash_profile || cat >> /home/$USERNAME/.bash_profile <<EOF
 if [ -z "\$DISPLAY" ] && [ "\$(tty)" = "/dev/tty1" ]; then
     startx
 fi
 EOF
+chown $USERNAME:$USERNAME /home/$USERNAME/.bash_profile
+
 # OPENBOX, FIREFOX, TINT2 AND NM-APPLET AUTOSTART
 cat > /home/$USERNAME/.xinitrc <<EOF
 openbox &
 tint2 &
 nm-applet &
-python3 -m http.server 8080 --bind 127.0.0.1 --directory /home/$USERNAME &
-sleep 1
 while true; do
-    firefox --kiosk http://localhost:8080/waiting.html
+    firefox --kiosk file:///home/$USERNAME/waiting.html
     sleep 2
 done
 EOF
-# APPLY CHANGES
-sudo systemctl daemon-reload
-# AUTO UPDATE ON BOOT
-sudo tee /etc/systemd/system/autoupdate.service <<EOF
+chmod 755 /home/$USERNAME/.xinitrc
+chown $USERNAME:$USERNAME /home/$USERNAME/.xinitrc
+
+# AUTO UPDATE ON BOOT (Background, low priority, non-blocking)
+tee /etc/systemd/system/autoupdate.service <<EOF
 [Unit]
 Description=Auto update on boot
 After=network-online.target
 Wants=network-online.target
+
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/apt update
-ExecStart=/usr/bin/apt upgrade -y
+Environment=DEBIAN_FRONTEND=noninteractive
+Nice=19
+IOSchedulingClass=idle
+ExecStart=/usr/bin/apt-get update
+ExecStart=/usr/bin/apt-get dist-upgrade -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"
+ExecStartPost=/usr/bin/apt-get autoremove -y
+
 [Install]
 WantedBy=multi-user.target
 EOF
-sudo systemctl enable autoupdate.service
-sudo apt autoremove -y
+
+# APPLY CHANGES
+systemctl daemon-reload
+systemctl enable autoupdate.service
+apt-get autoremove -y
+
 # REBOOT
-sudo reboot
+reboot
+

@@ -25,7 +25,7 @@ Perfect for breathing new life into old hardware and using it to connect to remo
 
 - **Minimal footprint** — only installs what's strictly necessary
 - **Wi-Fi support** — includes a system tray icon to connect to any Wi-Fi network
-- **Always up to date** — runs `apt update && apt upgrade` automatically on every boot
+- **Always up to date** — runs safe, non-blocking background updates automatically on every boot
 - **Connection screen** — displays a waiting screen on boot that redirects to your portal once internet is available
 - **Compatible with Chromium and Firefox** — choose the browser that works best for your hardware
 - **Works on low-resource systems** — designed and tested on hardware with limited CPU and RAM
@@ -86,15 +86,15 @@ On boot, a custom waiting screen is shown. Once internet is detected, it redirec
    ```
 3. Give execution permissions and run:
    ```bash
-   # Chromium version
+   # Chromium version (interactive or passing URL as argument)
    chmod +x netclientx-chromium.sh
-   sudo ./netclientx-chromium.sh
+   sudo ./netclientx-chromium.sh [URL]
 
-   # Firefox version
+   # Firefox version (interactive or passing URL as argument)
    chmod +x netclientx-firefox.sh
-   sudo ./netclientx-firefox.sh
+   sudo ./netclientx-firefox.sh [URL]
    ```
-4. Enter your portal URL when prompted
+3. Enter your portal URL when prompted (if not passed as an argument)
 5. The system will install everything and reboot automatically
 6. After reboot, the browser will open in fullscreen — done!
 
@@ -102,9 +102,17 @@ On boot, a custom waiting screen is shown. Once internet is detected, it redirec
 
 ---
 
-## Wi-Fi
+## System Management & Wi-Fi
 
-After the first boot, press **F11** to exit fullscreen, then click the network icon in the taskbar, select your Wi-Fi network and enter the password. The connection will be remembered for future reboots. Press **F11** again to return to fullscreen.
+After the first boot, press **F11** to exit fullscreen.
+
+You can **right-click anywhere on the desktop** to open the NetClientX system menu, which allows you to:
+- **Open Wi-Fi Settings** (opens the network connection manager)
+- **Restart Web Browser** (handy if a session freezes)
+- **Reboot System**
+- **Shutdown System**
+
+Alternatively, click the network icon in the taskbar, select your Wi-Fi network and enter the password. Press **F11** again to return to fullscreen.
 
 ---
 
