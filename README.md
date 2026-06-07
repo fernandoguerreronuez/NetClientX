@@ -133,6 +133,22 @@ NetClientX configures a systemd service that runs `apt update && apt upgrade` au
 
 ---
 
+## Unattended installation (Autoinstall)
+
+If you need to configure multiple thin clients or want to install everything completely automatically without human intervention, you can use the **Ubuntu Autoinstall** template provided in the [autoinstall/user-data](file:///d:/Documentos/GitHub/NetClientX/autoinstall/user-data) file.
+
+By using this template:
+1. Ubuntu Server will install itself automatically on the target disk (zero-input boot).
+2. The NetClientX script will run silently in the background at the end of the installation.
+3. The computer will reboot directly into the ready-to-use thin client.
+
+### How to use:
+1. Copy [autoinstall/user-data](file:///d:/Documentos/GitHub/NetClientX/autoinstall/user-data) into your bootable USB installation media under a folder named `/nocloud/`.
+2. Plug the USB into the target computer and boot it.
+3. The default configuration uses the username `test` and password `netclientx`. You can customize the YAML file to change the credentials, browser, and target portal URL.
+
+---
+
 ## License
 
 This project is licensed under the [MIT License](LICENSE).

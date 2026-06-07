@@ -32,9 +32,18 @@ fi
 # If browser is not specified, ask interactively
 if [ -z "$BROWSER" ]; then
     echo "Select the browser to install:"
-    echo "1) Chromium"
+    echo "1) Chromium (Default)"
     echo "2) Firefox"
-    read -p "Choose option (1-2): " BROWSER_OPT
+    # Wait for 10 seconds, then fallback to Chromium (Option 1)
+    if ! read -t 10 -p "Choose option (1-2) [Default 1]: " BROWSER_OPT; then
+        echo ""
+        echo "Timeout reached. Selecting Chromium automatically."
+        BROWSER_OPT=1
+    fi
+    # If the user pressed enter without typing anything
+    if [ -z "$BROWSER_OPT" ]; then
+        BROWSER_OPT=1
+    fi
     case "$BROWSER_OPT" in
         1) BROWSER="chromium" ;;
         2) BROWSER="firefox" ;;
@@ -50,7 +59,14 @@ fi
 
 # Prompt for URL if not provided
 if [ -z "$URL" ]; then
-    read -p "Enter connection URL: " URL
+    if ! read -t 15 -p "Enter connection URL [Default google.com in 15s]: " URL; then
+        echo ""
+        echo "Timeout reached. Selecting google.com automatically."
+        URL="google.com"
+    fi
+    if [ -z "$URL" ]; then
+        URL="google.com"
+    fi
 fi
 
 # Clean and validate URL
@@ -64,9 +80,9 @@ if [[ ! "$URL" =~ ^https?:// ]]; then
 fi
 
 # GET USERNAME
-if [ -n "$SUDO_USER" ]; then
+if [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
     USERNAME=$SUDO_USER
-elif [ "$(logname 2>/dev/null)" ]; then
+elif [ "$(logname 2>/dev/null)" ] && [ "$(logname 2>/dev/null)" != "root" ]; then
     USERNAME=$(logname)
 else
     USERNAME=$(awk -F: '$3 >= 1000 && $3 != 65534 {print $1; exit}' /etc/passwd)

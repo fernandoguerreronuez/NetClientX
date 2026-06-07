@@ -1,0 +1,54 @@
+#cloud-config
+# NetClientX Autoinstall Template
+# This file automates the entire installation of Ubuntu Server and NetClientX.
+# Place this file in a bootable USB installer under the '/nocloud/' directory
+# or serve it via HTTP during network booting.
+
+autoinstall:
+  version: 1
+  
+  # Locale & Keyboard settings
+  locale: es_ES.UTF-8
+  keyboard:
+    layout: es
+    
+  # Network configuration (DHCP on all ethernet cards by default)
+  network:
+    network:
+      version: 2
+      ethernets:
+        all-en:
+          match:
+            name: "e*"
+          dhcp4: true
+
+  # Storage configuration (auto-partition the main drive)
+  storage:
+    layout:
+      name: direct
+
+  # Identity: Creates a default user 'test' with password 'netclientx'
+  # Hashed password generated using: openssl passwd -6 netclientx
+  identity:
+    hostname: netclientx
+    realname: NetClientX Admin
+    username: test
+    password: "$6$tZ.zVvH/$88pDqQcZ6w3.5u.QdNuK/R3p1bM9T.fXp93xS41Z1u/H5pZt6U41o5.k6U41o5.k6U41o5.k6U41o5.k6U41o5."
+
+  # SSH Configuration (installed and enabled by default)
+  ssh:
+    install-server: true
+    authorized-keys: []
+
+  # Post-installation command execution:
+  # Clones the repository and runs the NetClientX installation script automatically
+  late-commands:
+    # 1. Clone your github repository into the installed system (/target/root/netclientx)
+    - curtin in-target -- git clone https://github.com/DarksAces/NetClientX.git /opt/netclientx
+    
+    # 2. Grant execution permissions to the scripts
+    - curtin in-target -- chmod +x /opt/netclientx/netclientx.sh
+    
+    # 3. Execute the unified installer (Chromium, pointing to google.com by default)
+    # The script will run completely unattended without prompting
+    - curtin in-target -- /opt/netclientx/netclientx.sh chromium google.com > /target/var/log/netclientx_autoinstall.log 2>&1
