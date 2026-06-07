@@ -34,12 +34,7 @@ if [ -z "$BROWSER" ]; then
     echo "Select the browser to install:"
     echo "1) Chromium (Default)"
     echo "2) Firefox"
-    # Wait for 10 seconds, then fallback to Chromium (Option 1)
-    if ! read -t 10 -p "Choose option (1-2) [Default 1]: " BROWSER_OPT; then
-        echo ""
-        echo "Timeout reached. Selecting Chromium automatically."
-        BROWSER_OPT=1
-    fi
+    read -p "Choose option (1-2) [Default 1]: " BROWSER_OPT
     # If the user pressed enter without typing anything
     if [ -z "$BROWSER_OPT" ]; then
         BROWSER_OPT=1
@@ -59,11 +54,7 @@ fi
 
 # Prompt for URL if not provided
 if [ -z "$URL" ]; then
-    if ! read -t 15 -p "Enter connection URL [Default google.com in 15s]: " URL; then
-        echo ""
-        echo "Timeout reached. Selecting google.com automatically."
-        URL="google.com"
-    fi
+    read -p "Enter connection URL [Default google.com]: " URL
     if [ -z "$URL" ]; then
         URL="google.com"
     fi
