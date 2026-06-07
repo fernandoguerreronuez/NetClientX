@@ -65,6 +65,7 @@ On boot, a custom waiting screen is shown. Once internet is detected, it redirec
 - **Chromium** or **Firefox** — web browser in fullscreen
 - **NetworkManager + nm-applet** — Wi-Fi management from a system tray icon
 - **tint2** — minimal taskbar to display the Wi-Fi icon
+- **wget** — helper utility to download local assets like offline fonts
 
 ---
 
@@ -119,7 +120,7 @@ Alternatively, click the network icon in the taskbar, select your Wi-Fi network 
 
 ## Auto-updates
 
-NetClientX configures a systemd service that runs `apt update && apt upgrade` automatically on every boot, keeping the system up to date without any manual intervention.
+NetClientX configures a safe systemd service that runs updates automatically in the background on every boot using `apt-get`. It runs with low CPU and Disk scheduling priority (`Nice=19` and `IOSchedulingClass=idle`) and uses non-interactive flags to ensure package upgrades never block the system boot or freeze waiting for user input.
 
 ---
 
