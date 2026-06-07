@@ -84,17 +84,18 @@ On boot, a custom waiting screen is shown. Once internet is detected, it redirec
    git clone https://github.com/fernandoguerreronuez/netclientx.git
    cd netclientx
    ```
-3. Give execution permissions and run:
+3. Give execution permissions and run the main installer (or one of the browser-specific wrappers):
    ```bash
-   # Chromium version (interactive or passing URL as argument)
-   chmod +x netclientx-chromium.sh
-   sudo ./netclientx-chromium.sh [URL]
+   # Unified script (selects browser and URL interactively, or via arguments)
+   chmod +x netclientx.sh
+   sudo ./netclientx.sh [browser] [URL]
 
-   # Firefox version (interactive or passing URL as argument)
-   chmod +x netclientx-firefox.sh
+   # Or use the wrappers directly:
+   chmod +x netclientx-chromium.sh netclientx-firefox.sh
+   sudo ./netclientx-chromium.sh [URL]
    sudo ./netclientx-firefox.sh [URL]
    ```
-3. Enter your portal URL when prompted (if not passed as an argument)
+4. Enter your portal URL and/or choose the browser when prompted (if not passed as arguments)
 5. The system will install everything and reboot automatically
 6. After reboot, the browser will open in fullscreen — done!
 
@@ -124,10 +125,11 @@ NetClientX configures a systemd service that runs `apt update && apt upgrade` au
 
 ## Available scripts
 
-| Script | Browser |
+| Script | Purpose / Browser |
 |---|---|
-| `netclientx-chromium.sh` | Chromium |
-| `netclientx-firefox.sh` | Firefox |
+| `netclientx.sh` | Main unified script (supports Chromium & Firefox) |
+| `netclientx-chromium.sh` | Wrapper for Chromium installation |
+| `netclientx-firefox.sh` | Wrapper for Firefox installation |
 
 ---
 
