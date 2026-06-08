@@ -1,16 +1,186 @@
 #!/bin/bash
-# NetClientX V1
-# UPDATE AND INSTALL SOFTWARE
-sudo apt update && sudo apt upgrade -y && sudo apt autoremove -y && sudo apt install -y --no-install-recommends xorg openbox chromium-browser network-manager network-manager-gnome tint2 wget
-# GET USERNAME
-USERNAME=$(logname)
-# GET CONNECTION URL
-read -p "Enter connection URL: " URL
-# DOWNLOAD FONT
-mkdir -p /home/$USERNAME/fonts
-wget -q "https://fonts.gstatic.com/s/vt323/v17/pxiKyp0ihIEF2isfFJU.woff2" -O /home/$USERNAME/fonts/VT323.woff2
-# GENERATE WAITING PAGE
-cat > /home/$USERNAME/waiting.html << HTMLEOF
+# NetClientX V2 — Chromium
+
+# Usage: sudo ./netclientx-chromium.sh [URL]
+
+set -e
+
+# ==========================================
+#  CHECKS
+# ==========================================
+
+if [ "$EUID" -ne 0 ]; then
+    echo "Error: Please run this script with sudo."
+    exit 1
+fi
+
+# ==========================================
+#  GET USERNAME
+# ==========================================
+
+if [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
+    USERNAME=$SUDO_USER
+elif [ "$(logname 2>/dev/null)" ] && [ "$(logname 2>/dev/null)" != "root" ]; then
+    USERNAME=$(logname)
+else
+    USERNAME=$(awk -F: '$3 >= 1000 && $3 != 65534 {print $1; exit}' /etc/passwd)
+fi
+
+if [ -z "$USERNAME" ] || [ "$USERNAME" = "root" ]; then
+    echo "Error: Could not determine the non-root user."
+    exit 1
+fi
+
+# ==========================================
+#  GET AND VALIDATE URL
+# ==========================================
+
+URL="${1:-}"
+
+if [ -z "$URL" ]; then
+    read -p "Enter connection URL: " URL
+fi
+
+URL=$(echo "$URL" | xargs)
+
+if [ -z "$URL" ]; then
+    echo "Error: URL cannot be empty."
+    exit 1
+fi
+
+if [[ ! "$URL" =~ ^https?:// ]]; then
+    URL="https://$URL"
+fi
+
+# ==========================================
+#  SUMMARY
+# ==========================================
+
+echo "=========================================="
+echo "  NetClientX V2 — Chromium"
+echo "  User:       $USERNAME"
+echo "  Portal URL: $URL"
+echo "=========================================="
+echo ""
+
+# ==========================================
+#  STEP 1 — UPDATE AND INSTALL PACKAGES
+# ==========================================
+
+echo "[1/7] Updating system and installing packages..."
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -q
+apt-get upgrade -y -q \
+    -o Dpkg::Options::="--force-confdef" \
+    -o Dpkg::Options::="--force-confold"
+apt-get install -y -q --no-install-recommends \
+    xorg \
+    openbox \
+    chromium-browser \
+    network-manager \
+    network-manager-gnome \
+    tint2 \
+    wget \
+    polkitd \
+    pkexec
+apt-get autoremove -y -q
+echo "    Done."
+
+# ==========================================
+#  STEP 2 — DISABLE UNNECESSARY SERVICES
+# ==========================================
+
+echo "[2/7] Disabling unnecessary services..."
+
+SERVICES=(
+    ssh
+    snapd
+    snapd.socket
+    multipathd
+    ModemManager
+    cups
+    cups-browsed
+    avahi-daemon
+    apport
+    unattended-upgrades
+    bluetooth
+)
+
+for SERVICE in "${SERVICES[@]}"; do
+    if systemctl list-unit-files --quiet "$SERVICE" 2>/dev/null | grep -q "$SERVICE"; then
+        systemctl stop "$SERVICE" 2>/dev/null || true
+        systemctl disable "$SERVICE" 2>/dev/null || true
+        echo "    Disabled: $SERVICE"
+    fi
+done
+echo "    Done."
+
+# ==========================================
+#  STEP 3 — SETUP AUTOLOGIN
+# ==========================================
+
+echo "[3/7] Setting up autologin for $USERNAME..."
+mkdir -p /etc/systemd/system/getty@tty1.service.d/
+cat > /etc/systemd/system/getty@tty1.service.d/autologin.conf << EOF
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --autologin $USERNAME --noclear %I \$TERM
+EOF
+echo "    Done."
+
+# ==========================================
+#  STEP 4 — SETUP OPENBOX MENU
+# ==========================================
+
+echo "[4/7] Setting up Openbox system menu..."
+mkdir -p /home/$USERNAME/.config/openbox
+cat > /home/$USERNAME/.config/openbox/menu.xml << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<openbox_menu xmlns="http://openbox.org/3.4/menu">
+  <menu id="root-menu" label="NetClientX">
+    <item label="Restart Web Browser">
+      <action name="Execute"><command>pkill -f chromium-browser; sleep 1</command></action>
+    </item>
+    <item label="Open Wi-Fi Settings">
+      <action name="Execute"><command>nm-connection-editor</command></action>
+    </item>
+    <separator />
+    <item label="Reboot System">
+      <action name="Execute"><command>systemctl reboot</command></action>
+    </item>
+    <item label="Shutdown System">
+      <action name="Execute"><command>systemctl poweroff</command></action>
+    </item>
+  </menu>
+</openbox_menu>
+EOF
+chmod 644 /home/$USERNAME/.config/openbox/menu.xml
+chown -R $USERNAME:$USERNAME /home/$USERNAME/.config
+echo "    Done."
+
+# ==========================================
+#  STEP 5 — DOWNLOAD FONT
+# ==========================================
+
+echo "[5/7] Downloading VT323 font..."
+mkdir -p /home/$USERNAME/netclientx/fonts
+wget -q "https://fonts.gstatic.com/s/vt323/v17/pxiKyp0ihIEF2isfFJU.woff2" \
+    -O /home/$USERNAME/netclientx/fonts/VT323.woff2
+chmod 644 /home/$USERNAME/netclientx/fonts/VT323.woff2
+chown -R $USERNAME:$USERNAME /home/$USERNAME/netclientx
+echo "    Done."
+
+# ==========================================
+#  STEP 6 — GENERATE WAITING PAGE
+# ==========================================
+
+echo "[6/7] Generating waiting page..."
+
+WAITING_HTML=/home/$USERNAME/netclientx/waiting.html
+
+# Write HTML to file. Single quotes around HTMLEOF prevent shell expansion
+# inside the heredoc, so we substitute $URL and $USERNAME manually after.
+cat > "$WAITING_HTML" << 'HTMLEOF'
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -20,7 +190,7 @@ cat > /home/$USERNAME/waiting.html << HTMLEOF
   <style>
     @font-face {
       font-family: 'VT323';
-      src: url('/fonts/VT323.woff2') format('woff2');
+      src: url('fonts/VT323.woff2') format('woff2');
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: #0a0000; overflow: hidden; font-family: 'VT323', monospace; transition: background 0.8s; }
@@ -55,7 +225,7 @@ cat > /home/$USERNAME/waiting.html << HTMLEOF
   <div class="status" id="statusText">Waiting for connection<span class="dot">_</span></div>
 </div>
 <script>
-  const TARGET_URL = "$URL";
+  const TARGET_URL = "NETCLIENTX_URL_PLACEHOLDER";
   const canvas = document.getElementById('bg');
   const ctx = canvas.getContext('2d');
   let W, H, y1, y2;
@@ -120,7 +290,9 @@ cat > /home/$USERNAME/waiting.html << HTMLEOF
         logo.style.textShadow = '0 0 20px rgba(255,0,0,0.8)';
         accent.style.color = '#ff0000';
         statusText.style.color = 'rgba(255,60,60,0.7)';
-        statusText.innerHTML = state === 'lost' ? 'Connection lost<span class="dot">_</span>' : 'Waiting for connection<span class="dot">_</span>';
+        statusText.innerHTML = state === 'lost'
+          ? 'Connection lost<span class="dot">_</span>'
+          : 'Waiting for connection<span class="dot">_</span>';
       } else if (state === 'established') {
         animateColor(bgColor, [0, 10, 0], 800);
         logo.style.textShadow = '0 0 20px rgba(0,255,80,0.8)';
@@ -154,52 +326,81 @@ cat > /home/$USERNAME/waiting.html << HTMLEOF
 </body>
 </html>
 HTMLEOF
-# FIX PERMISSIONS
-chmod 644 /home/$USERNAME/waiting.html
-chmod 644 /home/$USERNAME/fonts/VT323.woff2
-chown -R $USERNAME:$USERNAME /home/$USERNAME/fonts /home/$USERNAME/waiting.html
-# SETUP AUTOLOGIN
-sudo mkdir -p /etc/systemd/system/getty@tty1.service.d/
-sudo tee /etc/systemd/system/getty@tty1.service.d/autologin.conf <<EOF
-[Service]
-ExecStart=
-ExecStart=-/sbin/agetty --autologin $USERNAME --noclear %I \$TERM
-EOF
-# X AUTOSTART
-grep -qF 'startx' /home/$USERNAME/.bash_profile || cat >> /home/$USERNAME/.bash_profile <<EOF
-if [ -z "\$DISPLAY" ] && [ "\$(tty)" = "/dev/tty1" ]; then
+
+# Substitute the URL placeholder now that the file is written
+sed -i "s|NETCLIENTX_URL_PLACEHOLDER|$URL|g" "$WAITING_HTML"
+chmod 644 "$WAITING_HTML"
+chown -R $USERNAME:$USERNAME /home/$USERNAME/netclientx
+echo "    Done."
+
+# ==========================================
+#  STEP 7 — SETUP AUTOSTART
+# ==========================================
+
+echo "[7/7] Setting up session autostart..."
+
+# X autostart on login
+grep -qF 'startx' /home/$USERNAME/.bash_profile 2>/dev/null || cat >> /home/$USERNAME/.bash_profile << 'EOF'
+if [ -z "$DISPLAY" ] && [ "$(tty)" = "/dev/tty1" ]; then
     startx
 fi
 EOF
-# OPENBOX, CHROMIUM, TINT2 AND NM-APPLET AUTOSTART
-cat > /home/$USERNAME/.xinitrc <<EOF
+chown $USERNAME:$USERNAME /home/$USERNAME/.bash_profile
+
+# xinitrc — launch Openbox, tint2, nm-applet and Chromium
+cat > /home/$USERNAME/.xinitrc << EOF
 openbox &
 tint2 &
 nm-applet &
-python3 -m http.server 8080 --bind 127.0.0.1 --directory /home/$USERNAME &
-sleep 1
 while true; do
-    sed -i 's/"exit_type":"Crashed"/"exit_type":"Normal"/g' /home/$USERNAME/.config/chromium/Default/Preferences 2>/dev/null
-    chromium-browser --start-fullscreen --no-first-run --disable-session-crashed-bubble --restore-last-session=false http://localhost:8080/waiting.html
+    sed -i 's/"exit_type":"Crashed"/"exit_type":"Normal"/g' \\
+        /home/$USERNAME/.config/chromium/Default/Preferences 2>/dev/null
+    chromium-browser \\
+        --start-fullscreen \\
+        --no-first-run \\
+        --disable-session-crashed-bubble \\
+        --restore-last-session=false \\
+        file:///home/$USERNAME/netclientx/waiting.html
     sleep 2
 done
 EOF
-# APPLY CHANGES
-sudo systemctl daemon-reload
-# AUTO UPDATE ON BOOT
-sudo tee /etc/systemd/system/autoupdate.service <<EOF
+chmod 755 /home/$USERNAME/.xinitrc
+chown $USERNAME:$USERNAME /home/$USERNAME/.xinitrc
+
+# Auto-update service (low priority, non-blocking)
+cat > /etc/systemd/system/netclientx-update.service << 'EOF'
 [Unit]
-Description=Auto update on boot
+Description=NetClientX — Auto update on boot
 After=network-online.target
 Wants=network-online.target
+
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/apt update
-ExecStart=/usr/bin/apt upgrade -y
+Environment=DEBIAN_FRONTEND=noninteractive
+Nice=19
+IOSchedulingClass=idle
+ExecStart=/usr/bin/apt-get update -q
+ExecStart=/usr/bin/apt-get dist-upgrade -y -q \
+    -o Dpkg::Options::="--force-confdef" \
+    -o Dpkg::Options::="--force-confold"
+ExecStartPost=/usr/bin/apt-get autoremove -y -q
+
 [Install]
 WantedBy=multi-user.target
 EOF
-sudo systemctl enable autoupdate.service
-sudo apt autoremove -y
-# REBOOT
-sudo reboot
+
+systemctl daemon-reload
+systemctl enable netclientx-update.service
+echo "    Done."
+
+# ==========================================
+#  FINISHED
+# ==========================================
+
+echo ""
+echo "=========================================="
+echo "  Setup complete!"
+echo "  Rebooting in 5 seconds..."
+echo "=========================================="
+sleep 5
+reboot
